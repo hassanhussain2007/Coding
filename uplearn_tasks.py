@@ -15,8 +15,8 @@ options = Options()
 options.add_argument("--headless")
 
 # Telegram bot details
-TOKEN = "7621055077:AAFlTucHTKpowBHF-MnqKoXBlTE_PAT1YIs"
-CHAT_ID = "7570431772"
+TOKEN = "#############################################"
+CHAT_ID = "###############"
 
 tasks = {}
 old_tasks = {}
@@ -39,12 +39,12 @@ def get_new_tasks():
     # Enter username and password
     input_username = driver.find_element(By.ID, "input-1")
     input_username.clear()
-    input_username.send_keys("b.hassanhussain@astreasheffield.org")
+    input_username.send_keys("##############################")
     time.sleep(2)
     
     input_password = driver.find_element(By.ID, "input-2")
     input_password.clear()
-    input_password.send_keys("tempPassword1!" + Keys.ENTER)
+    input_password.send_keys("###############" + Keys.ENTER)
     time.sleep(2)
     
     # Go to assignments
