@@ -1,121 +1,236 @@
-import time
-import schedule
-import json
 import requests
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.edge.service import Service
+from selenium.webdriver.edge.options import Options
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.edge.options import Options
+from selenium.common.exceptions import TimeoutException
+import json
+from pathlib import Path
+import time
 
-# Make selenium run in headless mode
-options = Options()
-options.add_argument("--headless")
 
-# Telegram bot details
-TOKEN = "#############################################"
-CHAT_ID = "###############"
+# ------------------------------
+# CONFIG
+# ------------------------------
+accounts = {
+    "maths_physics_chemistry_uplearn": {
+        "username": "b.hassanhussain@astreasheffield.org",
+        "password": "tempPassword1!",
+        "assignments_file": Path("assignments_maths_phy_chem.json"),
+        "ntfy_url": "https://ntfy.sh/maths_physics_chemistry_uplearn"
+    },
+    "biology_chemistry_psychology":{
+        "username": "b.azaanparwez@astreasheffield.org",
+        "password": "AzaanP4rwez",
+        "assignments_file": Path("assignments_chem_bio_psyc"),
+        "ntfy_url": "https://ntfy.sh/biology_chemistry_psychology_uplearn"
+    }
+}
 
-tasks = {}
-old_tasks = {}
-delete = {}
 
-def get_new_tasks():
-    # Create Edge driver
-    driver = webdriver.Edge(options=options)
+def get_assignments(username, password, EDGE_DRIVER_PATH, URL, ASSIGNMENTS_FILE, ntfy_url):
+    # ------------------------------
+    # SETUP EDGE
+    # ------------------------------
+    options = Options()
+
+    # Run Edge in headless mode (no visible browser)
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--no-sandbox")
+    options.add_argument("--window-size=1920,1080")
+
+
+    service = Service(EDGE_DRIVER_PATH)
+    driver = webdriver.Edge(service=service, options=options)
+    wait = WebDriverWait(driver, 30)
+
+
+    # ------------------------------
+    # STEP 1: OPEN LOGIN PAGE
+    # ------------------------------
+    print("Opening Uplearn login page...")
+    driver.get(URL)
+
+    # Wait for the page body to load first
+    try:
+        wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
+    except TimeoutException:
+        print("Warning: Page body didn't fully load, continuing anyway...")
+
+    # Give a short fixed delay to allow scripts to render dynamic content
     time.sleep(2)
-    
-    # Go to Uplearn
-    driver.get("https://web.uplearn.co.uk/login")
-    time.sleep(2)
-    
-    # Wait until element exists
-    WebDriverWait(driver, 5).until(
-        EC.presence_of_element_located((By.ID, "input-1"))
+
+    # Wait for assignments link to appear and be clickable
+    try:
+        assignments_link = wait.until(
+            EC.element_to_be_clickable((By.XPATH, "//a[@href='/assignments']"))
+        )
+        print("Assignments link found. Clicking...")
+        assignments_link.click()
+    except TimeoutException:
+        print("Error: Assignments link not found or page didn't load properly.")
+
+
+
+    # ------------------------------
+    # STEP 2: ENTER EMAIL
+    # ------------------------------
+    email_input = wait.until(
+        EC.visibility_of_element_located((By.ID, "input-1"))
     )
-    
-    # Enter username and password
-    input_username = driver.find_element(By.ID, "input-1")
-    input_username.clear()
-    input_username.send_keys("##############################")
-    time.sleep(2)
-    
-    input_password = driver.find_element(By.ID, "input-2")
-    input_password.clear()
-    input_password.send_keys("###############" + Keys.ENTER)
-    time.sleep(2)
-    
-    # Go to assignments
-    href_value = "/assignments"
-    assignments_button = driver.find_element(By.XPATH, f"//a[@href='{href_value}']")
-    assignments_button.click()
-    time.sleep(2)
-    
-    # Locate all assignment elements
-    
-    # Find all <a> elements that match the given criteria
-    a_elements = driver.find_elements(By.XPATH, "//div[@id='react-content']/div//a")
-    
-    # Loop through each <a> element
-    for a in a_elements:
-        # Extract the nested <p> elements inside each <a>
-        p_elements = a.find_elements(By.TAG_NAME, "p")
-    
-        x = {p_elements[0].text: p_elements[1].text}
-        tasks.update(x)    
+    email_input.send_keys(username)
+
+
+    # ------------------------------
+    # STEP 3: CLICK NEXT
+    # ------------------------------
+    next_button = wait.until(
+        EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Next']]"))
+    )
+    next_button.click()
+
+
+    # ------------------------------
+    # STEP 4: ENTER PASSWORD
+    # ------------------------------
+    password_input = wait.until(
+        EC.visibility_of_element_located((By.ID, "input-2"))
+    )
+    password_input.send_keys(password)
+
+
+    # ------------------------------
+    # STEP 5: SIGN IN
+    # ------------------------------
+    sign_in_button = wait.until(
+        EC.element_to_be_clickable((By.XPATH, "//button[.//span[text()='Sign in']]"))
+    )
+    sign_in_button.click()
+
+    print("Login successful.")
+
+
+    # ------------------------------
+    # STEP 6: GO TO ASSIGNMENTS
+    # ------------------------------
+    assignments_link = wait.until(
+        EC.element_to_be_clickable((By.XPATH, "//a[@href='/assignments']"))
+    )
+    assignments_link.click()
+
+
+    # ------------------------------
+    # STEP 7: FETCH ASSIGNMENTS
+    # ------------------------------
+# ------------------------------
+# STEP 7: FETCH ASSIGNMENTS (SAFE)
+# ------------------------------
+    print("\nFetching assignments...\n")
+
+    # Wait until either assignments exist OR the empty-state message appears
+    wait.until(
+        EC.any_of(
+            EC.presence_of_element_located(
+                (By.XPATH, "//a[starts-with(@data-testid, 'assignment-subsection-')]")
+            ),
+            EC.presence_of_element_located(
+                (By.XPATH, "//*[contains(text(), 'No assignments to complete')]")
+            )
+        )
+    )
+
+    # Now safely fetch assignments (returns [] if none exist)
+    assignment_elements = driver.find_elements(
+        By.XPATH,
+        "//a[starts-with(@data-testid, 'assignment-subsection-')]"
+    )
+
+    current_assignments = []
+
+
+    for i, a in enumerate(assignment_elements, start=1):
+        assignment_id = a.get_attribute("data-testid")
+
+        title = a.find_element(
+            By.XPATH, ".//p[@weight='semiBold']"
+        ).text.strip()
+
+        due = a.find_element(
+            By.XPATH, ".//p[contains(text(), 'Due')]"
+        ).text.strip()
+
+        current_assignments.append({
+            "id": assignment_id,
+            "title": title,
+            "due": due
+        })
+
+    # ------------------------------
+    # STEP 8: TOMORROW WARNING
+    # ------------------------------
+
+    for a in current_assignments:
+        if "tomorrow" in a["due"].lower():
+            requests.post(ntfy_url, data=(f"{a['title']} is due tomorrow").encode("utf-8"), timeout=5)
+
+
+    # ------------------------------
+    # STEP 9: LOAD SAVED ASSIGNMENTS
+    # ------------------------------
+    if ASSIGNMENTS_FILE.exists():
+        try:
+            with open(ASSIGNMENTS_FILE, "r") as f:
+                saved_assignments = json.load(f)
+                if not isinstance(saved_assignments, list):
+                    saved_assignments = []
+        except json.JSONDecodeError:
+            saved_assignments = []
+    else:
+        saved_assignments = []
+
+
+    # ------------------------------
+    # STEP 10: COMPARE & SYNC
+    # ------------------------------
+    current_ids = {a["id"] for a in current_assignments}
+    saved_ids = {a["id"] for a in saved_assignments}
+
+    new_assignments = [
+        a for a in current_assignments if a["id"] not in saved_ids
+    ]
+
+    removed_assignments = [
+        a for a in saved_assignments if a["id"] not in current_ids
+    ]
+
+    if new_assignments:
+        for a in new_assignments:
+            requests.post(ntfy_url, data=(f"ASSIGNMENT ADDED:  {a['title']} ({a['due']})"), timeout=5)
+
+    if removed_assignments:
+        for a in removed_assignments:
+            requests.post(ntfy_url, data=(f"ASSIGNMENT REMOVED:   {a['title']} ({a['due']})"), timeout=5)
+
+
+    # ------------------------------
+    # STEP 11: WRITE JSON (SYNC STATE)
+    # ------------------------------
+    with open(ASSIGNMENTS_FILE, "w") as f:
+        json.dump(current_assignments, f, indent=2)
+
+    print("\nAssignments file synced.")
+
+
+    # ------------------------------
+    # DONE
+    # ------------------------------
     driver.quit()
-    
-def process_tasks():    
-    # Get tasks from file
-    with open("uplearn_assignments.json", "r") as f:
-        data = json.load(f)
-        for key, value in data.items():
-            x = {key:value}
-            old_tasks.update(x)
-
-    # Loop through new tasks and compare with old tasks
-    for key,value in tasks.items():
-        if key in old_tasks:
-            pass
-        else:
-            print(key, "added to old tasks\n")
-            x = {key:value}
-            old_tasks.update(x)
-            message = "NEW UPLEARN TASK: " + key + ": " + value   # SEND TELEGRAM AN UPDATE
-            url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={CHAT_ID}&text={message}"
-            requests.get(url)
-
-    # Loop through old tasks and compare with new tasks
-    for key,value in old_tasks.items():
-        if key in tasks:
-            pass
-        else:
-            print(key, "deleted from old tasks\n")
-            x = {key:value}
-            delete.update(x)
-            message = "UPLEARN TASK REMOVED: " + key + ": " + value    # SEND TELEGRAM AN UPDATE
-            url = f"https://api.telegram.org/bot{TOKEN}/sendMessage?chat_id={CHAT_ID}&text={message}"
-            requests.get(url)
-
-    # Remove deleted tasks from old tasks
-    for key, value in delete.items():
-        del old_tasks[key]
-
-    # Empty json file and upload all tasks in old tasks
-    with open("uplearn_assignments.json", "w") as f:
-        f.truncate()
-        json.dump(old_tasks, f)
 
 
-get_new_tasks()
-process_tasks()
-
-
-schedule.every().day.at("18:00").do(get_new_tasks)
-schedule.every().day.at("18:00").do(process_tasks)
-
-while True:
-    schedule.run_pending()
-    time.sleep(1)
+for key, value in accounts.items():
+    EDGE_DRIVER_PATH = r"C:\Users\hassa\Downloads\edgedriver_win64\msedgedriver.exe"
+    url = "https://web.uplearn.co.uk/login"
+    get_assignments(value["username"], value["password"], EDGE_DRIVER_PATH, url,value["assignments_file"], value["ntfy_url"])
