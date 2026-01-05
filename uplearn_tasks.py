@@ -16,14 +16,14 @@ import time
 # ------------------------------
 accounts = {
     "maths_physics_chemistry_uplearn": {
-        "username": "b.hassanhussain@astreasheffield.org",
-        "password": "tempPassword1!",
+        "username": "******",
+        "password": "********",
         "assignments_file": Path("assignments_maths_phy_chem.json"),
         "ntfy_url": "https://ntfy.sh/maths_physics_chemistry_uplearn"
     },
     "biology_chemistry_psychology":{
-        "username": "b.azaanparwez@astreasheffield.org",
-        "password": "AzaanP4rwez",
+        "username": "*************",
+        "password": "************",
         "assignments_file": Path("assignments_chem_bio_psyc"),
         "ntfy_url": "https://ntfy.sh/biology_chemistry_psychology_uplearn"
     }
@@ -234,3 +234,4 @@ for key, value in accounts.items():
     EDGE_DRIVER_PATH = r"C:\Users\hassa\Downloads\edgedriver_win64\msedgedriver.exe"
     url = "https://web.uplearn.co.uk/login"
     get_assignments(value["username"], value["password"], EDGE_DRIVER_PATH, url,value["assignments_file"], value["ntfy_url"])
+
